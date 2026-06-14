@@ -1,0 +1,42 @@
+openapi: "3.0.3"
+info:
+  title: alert-freebox API
+  description: |
+    Minimal HTTP interface exposed by the alert-freebox monitoring script.
+    The main logic runs as a background interval — this API is a companion for
+    triggering on-demand test SMS or integrating with external webhooks.
+  version: "1.0.0"
+
+servers:
+  - url: "http://localhost:3000"
+    description: Local instance (adjust host/port to match your deployment)
+
+tags:
+  - name: test
+    description: On-demand SMS trigger
+
+paths:
+  /testeurderequete:
+    get:
+      summary: Send a test SMS
+      description: |
+        Immediately sends a test SMS via the Free Mobile API.
+        Useful for validating that credentials and connectivity are working
+        without waiting for the 5-minute check interval.
+      operationId: sendTestSms
+      tags: [test]
+      responses:
+        "200":
+          description: SMS sent successfully
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Envoi de requete de test en cours"
+        "500":
+          description: SMS delivery failed (check USER/PASS credentials or Free Mobile API availability)
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Erreur lors de l envoi du SMS"

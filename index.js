@@ -1,28 +1,40 @@
+/**
+ * alert-freebox
+ *
+ * Monitors a remote URL every 5 minutes. If the request fails (timeout or error),
+ * sends an SMS alert via the Free Mobile API. Useful for detecting Freebox disconnections
+ * from an external server (VPS, cloud instance, etc.).
+ *
+ * Required environment variables:
+ *   HOST_URL  — URL to probe (e.g. your Freebox's dynamic DNS address)
+ *   USER      — Free Mobile account ID (note: do not rely on the system USER variable)
+ *   PASS      — Free Mobile SMS API key (generated in Mon Compte > Mes Options)
+ */
+
 require('dotenv').config();
 const https = require('https');
 const axios = require('axios');
 const express = require('express');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const HOST_URL = process.env.HOST_URL;
 
 const FREE_SMS_API = 'https://smsapi.free-mobile.fr/sendmsg';
 const USER = process.env.USER;
 const PASS = process.env.PASS;
+
 const MESSAGE_START = 'Script lance pour verifier la connexion vers ' + HOST_URL;
 const MESSAGE_ALERT = 'Alerte : La box est deconnectee !';
 const MESSAGE_TEST = 'Requete test depuis web';
 
+// Self-signed or private certificates are common on home boxes — skip TLS verification
+// for the monitored host only, not for the Free Mobile API.
 const agent = new https.Agent({ rejectUnauthorized: false });
 
-// Envoi d un SMS au demarrage
+// Notify on startup so you know the script is running
 axios.get(FREE_SMS_API, {
-    params: {
-        user: USER,
-        pass: PASS,
-        msg: MESSAGE_START
-    }
+    params: { user: USER, pass: PASS, msg: MESSAGE_START }
 }).catch(error => console.error('Erreur envoi SMS demarrage:', error));
 
 async function checkConnection() {
@@ -32,31 +44,21 @@ async function checkConnection() {
     } catch (error) {
         console.log('La box est deconnectee. Envoi du SMS...');
         axios.get(FREE_SMS_API, {
-            params: {
-                user: USER,
-                pass: PASS,
-                msg: MESSAGE_ALERT
-            }
+            params: { user: USER, pass: PASS, msg: MESSAGE_ALERT }
         }).catch(err => console.error('Erreur envoi SMS alerte:', err));
     }
 }
 
-// Verification toutes les 5 minutes (300000 ms)
-setInterval(checkConnection, 300000);
-
-// Verification immediate au demarrage
+// Check immediately on startup, then every 5 minutes
 checkConnection();
+setInterval(checkConnection, 300_000);
 
-// Route pour tester la reception de requetes GET
+// Trigger a test SMS from the outside (e.g. from a Freebox rule or webhook)
 app.get('/testeurderequete', async (req, res) => {
     console.log('Requete GET recue sur /testeurderequete');
     try {
         await axios.get(FREE_SMS_API, {
-            params: {
-                user: USER,
-                pass: PASS,
-                msg: MESSAGE_TEST
-            }
+            params: { user: USER, pass: PASS, msg: MESSAGE_TEST }
         });
         res.send('Envoi de requete de test en cours');
     } catch (error) {
@@ -65,7 +67,6 @@ app.get('/testeurderequete', async (req, res) => {
     }
 });
 
-// Lancement du serveur Express
 app.listen(PORT, () => {
     console.log(`Serveur demarre sur le port ${PORT}`);
 });
